@@ -4,7 +4,7 @@ EACA EG2000 Colour Genie utilities
 ## cas2tap
 Convert .cas file to .tap file. It not handles DATA .cas format (PRINT#-1).
 .tap file is a binary mirrored .wav file.
-Many .cas file fomrat exist for EG2000 emulators. The .tap file is for only generate the .wav file.
+Many .cas file format exist for EG2000 emulators. The .tap file is for only generate the .wav file.
 This utility checks the input .cas, .cgc or .tap file, and generates .tap file.
 It can rename the stored program name.
 The Color Genie documentation contains bad information from tape structure. It contains the TRS80 informations.

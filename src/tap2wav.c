@@ -1,3 +1,6 @@
+/**
+ * Based on cgc2wav from Attila Grósz
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,8 +8,8 @@
 
 static int turboMode = 0; // 0 - no tudbo mode, 1 -turbo mode, loader not writed, wav in normal mode, 2 - turbo mode, wav in turbo mode
 
-const unsigned char turbo4312H = 25; // 45; // A load loop értéke
-static int turboBaud = 3000; // 2000; // load loop beállítása utáni baud
+const unsigned char turbo4312H = 26; // 45; // A load loop értéke
+static int turboBaud = 2900; // 2000; // load loop beállítása utáni baud
 
 const unsigned char default4312H = 105; // A loader loop default értéke
 const int defaultBaud = 1150;

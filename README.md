@@ -22,6 +22,6 @@ Convert .tap format to wav. The wav file is usable direct to CLOAD or SYSTEM com
 options:
 -b <baud> : The default data speed on tape is 1200 baud. This option overrides it. If befor loading you change one byte, on Colour Genie, it can read faster.
   On Color Genie:
-    POKE 17170, 25 : CLOAD or SYSTEM can load the 3000 baud wav file.
+    POKE 17170, 26 : CLOAD or SYSTEM can load the 2900 baud wav file.
     POKE 17170, 105 : CLOAD or SYSTEM can load the default 1200 baud wav file.
-- t : Turbo wav file. The program will be loaded with 3000 baud! Not need modificaton on EG2000 before load!
+- t : Turbo wav file. The program will be loaded with 2900 baud! Not need modificaton on EG2000 before load!

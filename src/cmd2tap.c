@@ -1,6 +1,11 @@
 /**
  * This utility converts the z88dk output .cmd fileformat to .tap format.
  * Cmd format information comes from trs-80 cmd format : https://raw.githubusercontent.com/schnitzeltony/z80/master/src/cmd2cas.c
+ * CMD record types:
+ * 0x01 : DATA block
+ * 0x02 : ENTRY block
+ * 0x05 : NAME block
+ * others : COMMENT? block
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,33 +104,30 @@ void convert_filename_record( FILE *cmd, FILE *tap ) {
 //
 //    For example, A 01 02 00 6E xx yy zz would mean to set up the load block, indicate that the address for the block is 6E00, and that 256 bytes will follow.
 //    Another example, A 01 01 00 6E xx yy zz would mean to set up the load block, indicate that the address for the block is 6E00, and that 255 bytes will follow.
-void convert_object_record( FILE *cmd, FILE *tap ) {
-    int pos = ftell( cmd ); // info only
-    unsigned char size8 = fgetc( cmd ) - 2; //  + 254;
-    int size = size8 ? size8 : 256;
-    unsigned char byte; // tmp byte variable
-    unsigned int address;
-    fblockread( &address, 2, cmd ); // xx, yy
+void convert_load_record( FILE *cmd, FILE *tap, unsigned char sizeByte, int address, int pos ) {
+    int size = sizeByte ? sizeByte : 256;
     write_system_data_block( cmd, tap, address, size ); // Copy size bytes from cmd to tap
-    fprintf( stdout, "%d object byte converted to 0x%04X from 0x%06X\n", size, address, pos );
+    fprintf( stdout, "%d object bytes converted to 0x%04X from 0x%06X\n", size, address, pos );
 }
 
-//Record Type 02 – Transfer Address
+//Record Type 02 – Transfer Address, last block
 //    02 nn xx zz …
 //    nn = length of the block followed by the applicable data. xx = LSB, yyy = MSB
 //
 //    02 is usually the last header of the file.
-void convert_transfer_record( FILE *cmd, FILE *tap ) {
+void convert_last_record( FILE *cmd, FILE *tap, unsigned char sizeByte, int address, int pos ) {
     unsigned char byte; // tmp byte variable
-    unsigned char size = fgetc( cmd );
-    unsigned int address;
-    fblockread( &address, 2, cmd ); // xx, yy
-    if ( size == 2 ) {
-        write_system_entry_block( tap, address );
-    } else {
-        fprintf( stderr, "ENTRY: invalid transfer size (%#x)\n", size);
+    write_system_entry_block( tap, address );
+    int cnt = sizeByte;
+    for( cnt = sizeByte; cnt && !feof( cmd ); cnt-- ) fgetc( cmd ); // Skip 
+    if ( feof( cmd ) && sizeByte == 254 ) { // SKIP EOF
+        fprintf( stderr, "Transfer block size 0 = 254, but no data found before eof! Ignore block data\n" );
+    } else if ( cnt > 0 ) {
+        fprintf( stderr, "ENTRY: invalid transfer block size (%02X , %d) at position 0x%04X, not enough bytes. need %d\n", sizeByte, sizeByte, pos, cnt );
+        exit(1);
     }
-    fprintf( stdout, "%d transfer byte converted to %04X\n", size, address );
+    fprintf( stdout, "%d transfer bytes converted to 0x%04X address\n", sizeByte, address );
+
 }
 
 //Record Type other – Comment
@@ -140,26 +142,71 @@ void convert_comment_record( FILE *cmd ) {
     fprintf( stdout, "%d comment byte skipped.\n", size );
 }
 
-void convert( FILE *cmd, FILE *tap ) {
-    unsigned char byte; // tmp byte variable
-    while ( ( byte = fgetc( cmd ) ) && ( !feof( cmd ) ) ) {
-        int pos = ftell( cmd );
-        switch( byte ) { // Record type check
-            case 0x05 :
-                convert_filename_record( cmd, tap );
-                break;
-            case 0x01 :
+/**
+ * recordTypes:
+ * 1 - load block
+ * 2 - last block
+ * 3 - ignore block
+ */
+void convert_system( unsigned char recordType, FILE *cmd, FILE *tap ) {
+    int finished = 0;
+    while ( !finished && !feof( cmd ) ) {
+        int pos = ftell( cmd ) -1; // Block start pos
+        // The block size
+        unsigned char sizeByte = fgetc( cmd ) - 2;
+        // The load address
+        unsigned int address = 0;
+        fblockread( &address, 2, cmd ); // xx, yy
+        // 
+        switch( recordType ) { // Record type check
+//            case 0x05 : // filename in TRS80 CMD
+//                convert_filename_record( cmd, tap );
+//                break;
+            case 0x01 : // Load data block
                 if ( !system_name_position ) system_name_position = write_tap_header( tap );
-                convert_object_record( cmd, tap );
+                convert_load_record( cmd, tap, sizeByte, address, pos );
                 break;
-            case 0x02 :
-                convert_transfer_record( cmd, tap );
+            case 0x02 : // last block
+                if ( !sizeByte ) {
+                    // convert_comment_record( cmd );
+//                    fprintf( stderr, "Invalid 0 transfer size\n" );
+//                    exit( 1 );
+                }
+                convert_last_record( cmd, tap, sizeByte, address, pos );
+                finished = 1; // SKip after last block
+                break;
+            case 0x03 : // ignore block
+            case 0x00 :
+            case 0xff :
+            case 0x20 : // Comment to end of file?
+                finished = 1;
+                fprintf( stdout, "Found comment record 0x%02X. SKIP comment from 0x%06X to end of CMD file\n", recordType, pos );
                 break;
             default :
                 // convert_comment_record( cmd );
-                fprintf( stderr, "Invalid CMD record type 0x%02X at position 0x%06X\n", byte, pos );
+                fprintf( stderr, "Invalid CMD record type 0x%02X at position 0x%06X\n", recordType, pos );
                 exit( 1 );
         }
+        recordType = fgetc( cmd );
+    }
+}
+
+void convert_basic( FILE *cmd, FILE *tap ) {
+    fprintf( stderr, "Basic CMD conversion not implemented yet\n" );
+    exit( 1 );
+}
+
+void convert( FILE *cmd, FILE *tap ) {
+    unsigned char byte = fgetc( cmd ); // tmp byte variable
+    if ( !feof( cmd ) ) { // Ok, there is data
+        if ( byte == 0xFF ) {
+            convert_basic( cmd, tap );
+        } else {
+            convert_system( byte, cmd, tap );
+        }
+    } else {
+        fprintf( stderr, "CMD file is empty!\n" );
+        exit( 1 );
     }
     fclose( cmd );
     fclose( tap );

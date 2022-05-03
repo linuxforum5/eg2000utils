@@ -110,14 +110,12 @@ void convert_load_record( FILE *cmd, FILE *tap, unsigned char sizeByte, int addr
     fprintf( stdout, "%d object bytes converted to 0x%04X from 0x%06X\n", size, address, pos );
 }
 
-//Record Type 02 – Transfer Address, last block
-//    02 nn xx zz …
-//    nn = length of the block followed by the applicable data. xx = LSB, yyy = MSB
-//
-//    02 is usually the last header of the file.
+//Record Type 02  - Last block is only 4 bytes!
+// Ignore the size byte value. Ignore all bytes after last block
 void convert_last_record( FILE *cmd, FILE *tap, unsigned char sizeByte, int address, int pos ) {
     unsigned char byte; // tmp byte variable
     write_system_entry_block( tap, address );
+/*
     int cnt = sizeByte;
     for( cnt = sizeByte; cnt && !feof( cmd ); cnt-- ) fgetc( cmd ); // Skip 
     if ( feof( cmd ) && sizeByte == 254 ) { // SKIP EOF
@@ -127,7 +125,7 @@ void convert_last_record( FILE *cmd, FILE *tap, unsigned char sizeByte, int addr
         exit(1);
     }
     fprintf( stdout, "%d transfer bytes converted to 0x%04X address\n", sizeByte, address );
-
+*/
 }
 
 //Record Type other – Comment
@@ -167,13 +165,8 @@ void convert_system( unsigned char recordType, FILE *cmd, FILE *tap ) {
                 convert_load_record( cmd, tap, sizeByte, address, pos );
                 break;
             case 0x02 : // last block
-                if ( !sizeByte ) {
-                    // convert_comment_record( cmd );
-//                    fprintf( stderr, "Invalid 0 transfer size\n" );
-//                    exit( 1 );
-                }
                 convert_last_record( cmd, tap, sizeByte, address, pos );
-                finished = 1; // SKip after last block
+                finished = 1; // Ignore all bytes after last block
                 break;
             case 0x03 : // ignore block
             case 0x00 :

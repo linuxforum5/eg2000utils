@@ -6,6 +6,10 @@
 #include <string.h>
 #include "getopt.h"
 
+#define VM 0
+#define VS 4
+#define VB 'b'
+
 static int turboMode = 0; // 0 - no tudbo mode, 1 -turbo mode, loader not writed, wav in normal mode, 2 - turbo mode, wav in turbo mode
 
 const unsigned char turbo4312H = 26; // 45; // A load loop értéke
@@ -191,7 +195,7 @@ static void convert( FILE *tap, FILE* wav ) {
 }
 
 static void print_usage() {
-    printf( "tap2wav v0.1b\n");
+    printf( "tap2wav v%d.%d%c (build: %s)\n", VM, VS, VB, __DATE__ );
     printf( "Colour Genie binary tap to PCM wave file converter.\n");
     printf( "Copyright 2022 by László Princz\n");
     printf( "Usage:\n");

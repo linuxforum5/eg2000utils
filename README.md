@@ -15,7 +15,7 @@ options:
 Convert the z88dk output .cmd fileformat to .tap format.
 Cmd format information comes from trs-80 cmd format : https://raw.githubusercontent.com/schnitzeltony/z80/master/src/cmd2cas.c
 options:
--r <name> : Add (or override) name the program in tap file. The z88dk output cmd file not contains name record.
+-n <name> : Add name the program in tap file. Default name is the filename prefix - without path. The z88dk output cmd file and the EG2000 cmd format not contains name record.
 
 ## tap2wav
 Convert .tap format to wav. The wav file is usable direct to CLOAD or SYSTEM command on Colour Genie.

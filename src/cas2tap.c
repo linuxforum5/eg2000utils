@@ -12,8 +12,9 @@
 #include <string.h>
 #include "getopt.h"
 
-const int MainVersion = 0;
-const int SubVersion = 3;
+#define VM 0
+#define VS 4
+#define VB 'b'
 
 // Help for correct leader information : eg2000 - basicrom.pdf
 
@@ -308,7 +309,7 @@ void test_cas_file( FILE *cas, FILE *tap ) {
 }
 
 void print_usage() {
-    printf( "cas2tap v%d.%db (build: %s)\n", MainVersion, SubVersion, __DATE__ );
+    printf( "cas2tap v%d.%d%c (build: %s)\n", VM, VS, VB, __DATE__ );
     printf( "Test and convert Colour Genie and TRS-80 CAS, cgt or binary tap file to binary tap.\n");
     printf( "Copyright 2022 by László Princz\n");
     printf( "Usage:\n");

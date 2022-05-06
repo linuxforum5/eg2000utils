@@ -7,12 +7,21 @@
  * 0x05 : NAME block
  * others : COMMENT? block
  */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "getopt.h"
+#include <libgen.h>
 
+#define VM 0
+#define VS 4
+#define VB 'b'
 
+int verbose = 0;
 char system_name[ 7 ] = { 0,0,0,0,0,0,0 }; // Name for SYSTEM tape, if Cmd format not includes program name.
 int system_name_position = 0; // If it is not 0, then program name already writed.
 
@@ -107,7 +116,7 @@ void convert_filename_record( FILE *cmd, FILE *tap ) {
 void convert_load_record( FILE *cmd, FILE *tap, unsigned char sizeByte, int address, int pos ) {
     int size = sizeByte ? sizeByte : 256;
     write_system_data_block( cmd, tap, address, size ); // Copy size bytes from cmd to tap
-    fprintf( stdout, "%d object bytes converted to 0x%04X from 0x%06X\n", size, address, pos );
+    if ( verbose ) fprintf( stdout, "%d object bytes converted to 0x%04X from 0x%06X\n", size, address, pos );
 }
 
 //Record Type 02  - Last block is only 4 bytes!
@@ -169,9 +178,9 @@ void convert_system( unsigned char recordType, FILE *cmd, FILE *tap ) {
                 finished = 1; // Ignore all bytes after last block
                 break;
             case 0x03 : // ignore block
-            case 0x00 :
-            case 0xff :
-            case 0x20 : // Comment to end of file?
+//            case 0x00 :
+//            case 0xff :
+//            case 0x20 : // Comment to end of file?
                 finished = 1;
                 fprintf( stdout, "Found comment record 0x%02X. SKIP comment from 0x%06X to end of CMD file\n", recordType, pos );
                 break;
@@ -206,23 +215,61 @@ void convert( FILE *cmd, FILE *tap ) {
 }
 
 void print_usage() {
-    printf( "cmd2tap v0.1b\n");
+    printf( "cmd2tap v%d.%d%c (build: %s)\n", VM, VS, VB, __DATE__ );
     printf( "Convert Colour Genie cmd file to binary tap format.\n");
     printf( "Copyright 2022 by László Princz\n");
     printf( "Usage:\n");
     printf( "cmd2tap [options] -i <cmd_filename> -o <tap_filename>\n");
     printf( "Command line option:\n");
-    printf( "-n <name> : Programname override. Need if cmd file not contents filename record.\n");
+    printf( "-n <name> : Programname. Default the filename.\n");
+    printf( "-v        : Verbose mode. Default the non-verbose mode.\n");
     exit(1);
+}
+
+void copy_to_name( char* basename ) {
+    int i = 0;
+    for( i = 0; i<6 && basename[ i ]; i++ ) system_name[ i ] = basename[ i ];
+    for( int j = i; j < 7; j++ ) system_name[ j ] = 0;
+}
+
+char* copyStr( char *str, int chunkPos ) {
+    int size = 0;
+    while( str[size++] );
+    char *newStr = malloc( size );
+    for( int i=0; i<size; i++ ) newStr[i] = str[ i ];
+    if ( chunkPos>0 && chunkPos<size ) { // Chunk extension
+        if ( newStr[ size - chunkPos ] == '.' ) newStr[ size - chunkPos ] = 0;
+    }
+    return newStr;
+}
+
+char* copyStr3( char *str1, char *str2, char *str3 ) {
+    int size1 = 0; while( str1[size1++] );
+    int size2 = 0; while( str2[size2++] );
+    size2--;
+    int size3 = 0; while( str3[size3++] );
+    char *newStr = malloc( size1 + size2 + size3 );
+    for( int i=0; i<size1; i++ ) newStr[ i ] = str1[ i ];
+    if ( size1 ) newStr[ size1 - 1 ] = '/';
+    for( int i=0; i<size2; i++ ) newStr[ size1 + i ] = str2[ i ];
+    for( int i=0; i<size3; i++ ) newStr[ size1 + size2 + i ] = str3[ i ];
+    return newStr;
+}
+
+int is_dir( const char *path ) {
+    struct stat path_stat;
+    stat( path, &path_stat );
+    return S_ISDIR( path_stat.st_mode );
 }
 
 int main(int argc, char *argv[]) {
     int opt = 0;
-    int i = 0;
+    char *srcBasename = 0;
+    char *destDir = 0;
     FILE *cmdFile = 0;
     FILE *tapFile = 0;
 
-    while ( ( opt = getopt (argc, argv, "?h:i:o:n:") ) != -1 ) {
+    while ( ( opt = getopt (argc, argv, "v?h:i:o:n:") ) != -1 ) {
         switch ( opt ) {
             case -1:
             case ':':
@@ -231,20 +278,29 @@ int main(int argc, char *argv[]) {
             case 'h':
                 print_usage();
                 break;
+            case 'v':
+                verbose = 1;
+                break;
             case 'n': // system name override
-                for( i=0; i<6 && optarg[ i ]; i++ ) system_name[ i ] = optarg[ i ];
-                for( int j = i; j < 7; j++ ) system_name[ i ] = 0;
+                copy_to_name( optarg );
                 break;
             case 'i': // open cmd file
                 if ( !( cmdFile = fopen( optarg, "rb" ) ) ) {
                     fprintf( stderr, "Error opening %s.\n", optarg);
                     exit(4);
                 }
-                break;
+                srcBasename = copyStr( basename( optarg ), 5 );
+                destDir = copyStr( dirname( optarg ), 0 );
+                if ( !system_name[ 0 ] ) copy_to_name( srcBasename );
+            break;
             case 'o': // create tap file
-                if ( !( tapFile = fopen( optarg, "wb" ) ) ) {
-                    fprintf( stderr, "Error creating %s.\n", optarg);
-                    exit(4);
+                if ( is_dir( optarg ) ) { // Az output egy mappa
+                    destDir = copyStr( optarg, 0 );
+                } else {
+                    if ( !( tapFile = fopen( optarg, "wb" ) ) ) {
+                        fprintf( stderr, "Error creating %s.\n", optarg);
+                        exit(4);
+                    }
                 }
                 break;
             default:
@@ -252,7 +308,15 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if ( tapFile && cmdFile ) {
+    if ( cmdFile ) {
+        if ( !tapFile ) { // Nincs megadott tap fájl. destDir biztosan nem null
+            char *tapName = copyStr3( destDir, srcBasename, ".tap" );
+            if ( !( tapFile = fopen( tapName, "wb" ) ) ) {
+                fprintf( stderr, "Error creating %s.\n", tapName );
+                exit(4);
+            }
+            fprintf( stdout, "Create file %s\n", tapName );
+        }
         convert( cmdFile, tapFile );
         fprintf( stdout, "Ok\n" );
     } else {
